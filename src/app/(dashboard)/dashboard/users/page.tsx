@@ -1,20 +1,33 @@
-'use client';
+"use client";
 
 import { useState, useEffect, Fragment } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
 import toast, { Toaster } from 'react-hot-toast';
-import Button from '@/components/ui/Button';
-import Input from '@/components/ui/Input';
+import Button from '@/components/ui/button';
+import Input from '@/components/ui/input';
 import axiosInstance from '@/lib/axios';
-
-interface User {
-  _id: string;
-  firstName: string | null;
-  lastName: string | null;
-  email: string | null;
-  roles: string[];
-  isActive: boolean;
-}
+import { PlusIcon, PencilIcon, TrashIcon, ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
+import { Heading } from "@/components/ui/heading";
+import { Separator } from "@/components/ui/separator";
+import { UserTable } from "./components/user-table";
+import { ApiError, User } from "@/types";
+import { useToast } from "@/components/ui/use-toast";
+import {
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Plus } from "lucide-react";
 
 interface PaginatedResponse {
   users: User[];
@@ -56,6 +69,8 @@ export default function UsersPage() {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
 
+  const { toast } = useToast();
+
   const fetchUsers = async (page: number = 1) => {
     try {
       setLoading(true);
@@ -68,8 +83,9 @@ export default function UsersPage() {
       setUsers(response.data.users);
       setTotalItems(response.data.total);
       setError('');
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Có lỗi xảy ra khi tải danh sách người dùng');
+    } catch (error) {
+      const err = error as ApiError;
+      setError(err.message || 'Có lỗi xảy ra khi tải danh sách người dùng');
       console.error('Error fetching users:', err);
     } finally {
       setLoading(false);
@@ -86,8 +102,8 @@ export default function UsersPage() {
       try {
         const response = await axiosInstance.get('/users/me');
         setCurrentUser(response.data);
-      } catch (err) {
-        console.error('Error fetching current user:', err);
+      } catch (error) {
+        console.error('Error fetching current user:', error);
       }
     };
     fetchCurrentUser();
@@ -128,6 +144,7 @@ export default function UsersPage() {
     setIsSubmitting(true);
 
     try {
+      setLoading(true);
       await axiosInstance.post('/auth/register', formData);
       setIsOpen(false);
       setFormData({
@@ -136,20 +153,32 @@ export default function UsersPage() {
         lastName: '',
         password: '',
       });
-      // Refresh user list
       await fetchUsers(currentPage);
-      toast.success('Tạo người dùng mới thành công!');
-    } catch (err: any) {
+      toast({
+        title: "Thành công",
+        description: "Tạo người dùng thành công",
+      });
+    } catch (error) {
+      const err = error as ApiError;
       if (err.response?.status === 409) {
         setFormError({ email: 'Email đã tồn tại trong hệ thống' });
-        toast.error('Email đã tồn tại trong hệ thống');
+        toast({
+          title: "Lỗi",
+          description: "Email đã tồn tại trong hệ thống",
+          variant: "destructive",
+        });
       } else {
         const errorMessage = err.response?.data?.message || 'Có lỗi xảy ra khi tạo người dùng';
         setFormError({ submit: errorMessage });
-        toast.error(errorMessage);
+        toast({
+          title: "Lỗi",
+          description: errorMessage,
+          variant: "destructive",
+        });
       }
     } finally {
       setIsSubmitting(false);
+      setLoading(false);
     }
   };
 
@@ -225,12 +254,20 @@ export default function UsersPage() {
       setIsEditOpen(false);
       setSelectedUser(null);
       await fetchUsers(currentPage);
-      toast.success('Cập nhật người dùng thành công!');
-    } catch (err: any) {
+      toast({
+        title: "Thành công",
+        description: "Cập nhật người dùng thành công",
+      });
+    } catch (error) {
+      const err = error as ApiError;
       console.error('Error updating user:', err);
       const errorMessage = err.response?.data?.message || 'Có lỗi xảy ra khi cập nhật người dùng';
       setFormError({ submit: errorMessage });
-      toast.error(errorMessage);
+      toast({
+        title: "Lỗi",
+        description: errorMessage,
+        variant: "destructive",
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -270,30 +307,28 @@ export default function UsersPage() {
   const confirmDelete = async () => {
     if (!userToDelete) return;
 
-    const promise = new Promise((resolve, reject) => {
+    try {
       setIsDeleting(true);
-      axiosInstance.delete(`/users/${userToDelete._id}`)
-        .then(() => {
-          fetchUsers(currentPage);
-          setDeleteConfirmOpen(false);
-          resolve('Xóa người dùng thành công');
-        })
-        .catch((err) => {
-          const errorMessage = err.response?.data?.message || 'Có lỗi xảy ra khi xóa người dùng';
-          setError(errorMessage);
-          reject(errorMessage);
-        })
-        .finally(() => {
-          setIsDeleting(false);
-          setUserToDelete(null);
-        });
-    });
-
-    toast.promise(promise, {
-      loading: 'Đang xóa người dùng...',
-      success: (message: string) => message,
-      error: (message: string) => message,
-    });
+      await axiosInstance.delete(`/users/${userToDelete._id}`);
+      await fetchUsers(currentPage);
+      setDeleteConfirmOpen(false);
+      toast({
+        title: "Thành công",
+        description: "Xóa người dùng thành công",
+      });
+    } catch (error) {
+      const err = error as ApiError;
+      const errorMessage = err.response?.data?.message || 'Có lỗi xảy ra khi xóa người dùng';
+      setError(errorMessage);
+      toast({
+        title: "Lỗi",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    } finally {
+      setIsDeleting(false);
+      setUserToDelete(null);
+    }
   };
 
   return (
@@ -324,13 +359,15 @@ export default function UsersPage() {
       />
       <div className="sm:flex sm:items-center">
         <div className="sm:flex-auto">
-          <h1 className="text-2xl font-semibold text-gray-900">Quản lý người dùng</h1>
-          <p className="mt-2 text-sm text-gray-700">
-            Danh sách tất cả người dùng trong hệ thống bao gồm tên, email, vai trò và trạng thái.
-          </p>
+          <Heading
+            title={`Người dùng ${loading ? "" : `(${users.length})`}`}
+            description="Quản lý người dùng trong hệ thống"
+          />
         </div>
         <div className="mt-4 sm:mt-0 sm:ml-16 sm:flex-none">
-          <Button onClick={() => setIsOpen(true)}>Thêm người dùng</Button>
+          <Button onClick={() => setIsOpen(true)} className="inline-flex items-center gap-2">
+            <Plus className="mr-2 h-4 w-4" /> Thêm người dùng
+          </Button>
         </div>
       </div>
 
@@ -420,9 +457,9 @@ export default function UsersPage() {
                       </Button>
                       <Button
                         type="submit"
-                        isLoading={isSubmitting}
+                        disabled={isSubmitting}
                       >
-                        Thêm người dùng
+                        {isSubmitting ? 'Đang tạo...' : 'Thêm người dùng'}
                       </Button>
                     </div>
                   </form>
@@ -549,9 +586,9 @@ export default function UsersPage() {
                       </Button>
                       <Button
                         type="submit"
-                        isLoading={isSubmitting}
+                        disabled={isSubmitting}
                       >
-                        Lưu thay đổi
+                        {isSubmitting ? 'Đang cập nhật...' : 'Lưu thay đổi'}
                       </Button>
                     </div>
                   </form>
@@ -618,11 +655,11 @@ export default function UsersPage() {
                     </Button>
                     <Button
                       type="button"
-                      variant="danger"
+                      variant="destructive"
                       onClick={confirmDelete}
-                      isLoading={isDeleting}
+                      disabled={isDeleting}
                     >
-                      Xóa
+                      {isDeleting ? 'Đang xóa...' : 'Xóa'}
                     </Button>
                   </div>
                 </Dialog.Panel>
@@ -667,102 +704,12 @@ export default function UsersPage() {
           <div className="-mx-4 -my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
             <div className="inline-block min-w-full py-2 align-middle md:px-6 lg:px-8">
               <div className="overflow-hidden shadow ring-1 ring-black ring-opacity-5 md:rounded-lg">
-                <table className="min-w-full divide-y divide-gray-300">
-                  <thead className="bg-gray-50">
-                    <tr key="header">
-                      <th key="name" scope="col" className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6">
-                        Tên
-                      </th>
-                      <th key="email" scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
-                        Email
-                      </th>
-                      <th key="roles" scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
-                        Vai trò
-                      </th>
-                      <th key="status" scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
-                        Trạng thái
-                      </th>
-                      <th key="actions" scope="col" className="relative py-3.5 pl-3 pr-4 sm:pr-6">
-                        <span className="sr-only">Thao tác</span>
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200 bg-white">
-                    {loading ? (
-                      <tr key="loading">
-                        <td colSpan={5} className="text-center py-4">
-                          Đang tải...
-                        </td>
-                      </tr>
-                    ) : users.length === 0 ? (
-                      <tr key="empty">
-                        <td colSpan={5} className="text-center py-4">
-                          Không có dữ liệu người dùng
-                        </td>
-                      </tr>
-                    ) : (
-                      users
-                        .filter(filterUsers)
-                        .map((user, index) => {
-                          const filteredKey = user._id ? `filtered-${user._id}` : `filtered-index-${index}`;
-                          return (
-                            <tr key={filteredKey}>
-                              <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6">
-                                {getFullName(user)}
-                              </td>
-                              <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{user.email || 'N/A'}</td>
-                              <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                                <div className="flex gap-1 flex-wrap">
-                                  {user.roles.map((role, roleIndex) => (
-                                    <span
-                                      key={`${filteredKey}-role-${roleIndex}`}
-                                      className={`inline-flex rounded-full px-2 text-xs font-semibold leading-5 ${
-                                        role === 'admin' 
-                                          ? 'bg-purple-100 text-purple-800'
-                                          : role === 'moderator'
-                                          ? 'bg-blue-100 text-blue-800'
-                                          : 'bg-gray-100 text-gray-800'
-                                      }`}
-                                    >
-                                      {role === 'admin' ? 'Quản trị viên' : 
-                                       role === 'moderator' ? 'Điều hành viên' : 
-                                       role === 'user' ? 'Người dùng' : role}
-                                    </span>
-                                  ))}
-                                </div>
-                              </td>
-                              <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                                <span className={`inline-flex rounded-full px-2 text-xs font-semibold leading-5 ${
-                                  user.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                                }`}>
-                                  {user.isActive ? 'Hoạt động' : 'Không hoạt động'}
-                                </span>
-                              </td>
-                              <td className="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
-                                <div className="flex justify-end gap-2">
-                                  <Button
-                                    variant="secondary"
-                                    size="sm"
-                                    onClick={() => handleEditUser(user)}
-                                  >
-                                    Sửa
-                                  </Button>
-                                  <Button
-                                    variant="danger"
-                                    size="sm"
-                                    onClick={() => handleDeleteUser(user)}
-                                    disabled={user.roles.includes('admin')}
-                                  >
-                                    Xóa
-                                  </Button>
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })
-                    )}
-                  </tbody>
-                </table>
+                <Separator />
+                <UserTable
+                  data={users.filter(filterUsers)}
+                  loading={loading}
+                  onDelete={handleDeleteUser}
+                />
               </div>
             </div>
           </div>
@@ -806,19 +753,20 @@ export default function UsersPage() {
               <div>
                 <nav className="isolate inline-flex items-center gap-2" aria-label="Pagination">
                   <Button
-                    className="relative inline-flex items-center rounded-md px-3 py-2"
                     onClick={() => handlePageChange(currentPage - 1)}
                     disabled={currentPage === 1}
                     variant="secondary"
+                    className="inline-flex items-center gap-1"
                   >
+                    <ChevronLeftIcon className="h-4 w-4" />
                     Trang trước
                   </Button>
                   {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
                     <Button
                       key={page}
                       onClick={() => handlePageChange(page)}
-                      variant={currentPage === page ? 'primary' : 'secondary'}
-                      className={`relative inline-flex items-center px-4 py-2 text-sm font-semibold min-w-[40px] justify-center ${
+                      variant={currentPage === page ? 'default' : 'secondary'}
+                      className={`relative inline-flex items-center justify-center min-w-[40px] ${
                         currentPage === page
                           ? 'z-10 bg-indigo-600 text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600'
                           : 'text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:outline-offset-0'
@@ -828,12 +776,13 @@ export default function UsersPage() {
                     </Button>
                   ))}
                   <Button
-                    className="relative inline-flex items-center rounded-md px-3 py-2"
                     onClick={() => handlePageChange(currentPage + 1)}
                     disabled={currentPage === totalPages}
                     variant="secondary"
+                    className="inline-flex items-center gap-1"
                   >
                     Trang sau
+                    <ChevronRightIcon className="h-4 w-4" />
                   </Button>
                 </nav>
               </div>

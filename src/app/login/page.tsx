@@ -3,7 +3,7 @@
 import { useState, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import axiosInstance from '@/lib/axios';
-import Button from '@/components/ui/Button';
+import Button from '@/components/ui/button';
 import Cookies from 'js-cookie';
 import { jwtDecode } from 'jwt-decode';
 import { AxiosError } from 'axios';

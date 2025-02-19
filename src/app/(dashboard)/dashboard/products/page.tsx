@@ -1,8 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import Button from '@/components/ui/Button';
-import Input from '@/components/ui/Input';
+import Button from '@/components/ui/button';
+import Input from '@/components/ui/input';
 
 const products = [
   {
@@ -105,9 +105,7 @@ export default function ProductsPage() {
                             <Button variant="secondary" size="sm" className="mr-2">
                               Edit
                             </Button>
-                            <Button variant="danger" size="sm">
-                              Delete
-                            </Button>
+                            <Button variant="destructive">Delete</Button>
                           </td>
                         </tr>
                       ))}

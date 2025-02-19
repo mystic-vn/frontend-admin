@@ -8,6 +8,11 @@ import {
 } from '@heroicons/react/24/outline';
 import { useEffect, useState } from 'react';
 import axios from '@/lib/axios';
+import { Heading } from "@/components/ui/heading";
+import { Separator } from "@/components/ui/separator";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { DashboardCard } from "@/types";
+import { Users, FileText, Layout } from "lucide-react";
 
 interface Stat {
   name: string;
@@ -55,6 +60,27 @@ interface DashboardStat {
   changeType: 'positive' | 'negative' | 'neutral';
 }
 
+const cards: DashboardCard[] = [
+  {
+    title: "Quản lý người dùng",
+    icon: Users,
+    href: "/dashboard/users",
+    description: "Quản lý tài khoản người dùng trong hệ thống",
+  },
+  {
+    title: "Quản lý files",
+    icon: FileText,
+    href: "/dashboard/files",
+    description: "Quản lý files được upload lên hệ thống",
+  },
+  {
+    title: "Quản lý Tarot",
+    icon: Layout,
+    href: "/dashboard/tarot/cards",
+    description: "Quản lý các thông tin liên quan đến Tarot",
+  },
+];
+
 export default function DashboardPage() {
   const [stats, setStats] = useState<Stat[]>(defaultStats);
   const [loading, setLoading] = useState(true);
@@ -90,43 +116,27 @@ export default function DashboardPage() {
   }, []);
 
   return (
-    <div>
-      <h1 className="text-2xl font-semibold text-gray-900">Dashboard</h1>
-      
-      <div className="mt-4">
-        <dl className="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
-          {stats.map((item) => (
-            <div
-              key={item.name}
-              className="relative overflow-hidden rounded-lg bg-white px-4 pt-5 pb-12 shadow sm:px-6 sm:pt-6"
-            >
-              <dt>
-                <div className="absolute rounded-md bg-blue-500 p-3">
-                  <item.icon className="h-6 w-6 text-white" aria-hidden="true" />
+    <div className="flex-col">
+      <div className="flex-1 space-y-4 p-8 pt-6">
+        <Heading title="Dashboard" description="Tổng quan hệ thống" />
+        <Separator />
+        <div className="grid gap-4 grid-cols-3">
+          {cards.map((card) => (
+            <Card key={card.href}>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">
+                  {card.title}
+                </CardTitle>
+                <card.icon className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-sm text-muted-foreground">
+                  {card.description}
                 </div>
-                <p className="ml-16 truncate text-sm font-medium text-gray-500">
-                  {item.name}
-                </p>
-              </dt>
-              <dd className="ml-16 flex items-baseline pb-6 sm:pb-7">
-                <p className="text-2xl font-semibold text-gray-900">
-                  {loading ? '...' : item.value}
-                </p>
-                <p
-                  className={`ml-2 flex items-baseline text-sm font-semibold ${
-                    item.changeType === 'positive'
-                      ? 'text-green-600'
-                      : item.changeType === 'negative'
-                      ? 'text-red-600'
-                      : 'text-gray-500'
-                  }`}
-                >
-                  {loading ? '...' : item.change}
-                </p>
-              </dd>
-            </div>
+              </CardContent>
+            </Card>
           ))}
-        </dl>
+        </div>
       </div>
     </div>
   );

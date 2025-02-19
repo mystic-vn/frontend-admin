@@ -9,19 +9,26 @@ import {
   Square3Stack3DIcon,
   DocumentTextIcon,
   ChevronDownIcon,
+  FolderIcon,
 } from '@heroicons/react/24/outline';
 import { twMerge } from 'tailwind-merge';
 import { useState } from 'react';
+import { Users, FileText, LayoutGrid, MessageSquare } from 'lucide-react';
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: HomeIcon },
   { name: 'Users', href: '/dashboard/users', icon: UsersIcon },
+  { name: 'Tệp', href: '/dashboard/files', icon: FolderIcon },
   {
     name: 'Tarot',
-    icon: SparklesIcon,
+    icon: LayoutGrid,
     children: [
       { name: 'Bộ bài Tarot', href: '/dashboard/tarot/decks', icon: Square3Stack3DIcon },
       { name: 'Lá bài Tarot', href: '/dashboard/tarot/cards', icon: DocumentTextIcon },
+      { name: 'Arcana Types', href: '/dashboard/tarot/arcana-types', icon: SparklesIcon },
+      { name: 'Suits', href: '/dashboard/tarot/suits', icon: Square3Stack3DIcon },
+      { name: 'Ngữ cảnh', href: '/dashboard/tarot/contexts', icon: MessageSquare },
+      { name: 'Ý nghĩa lá bài', href: '/dashboard/tarot/card-contexts', icon: FileText },
     ],
   },
 ];
