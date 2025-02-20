@@ -13,7 +13,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { twMerge } from 'tailwind-merge';
 import { useState } from 'react';
-import { Users, FileText, LayoutGrid, MessageSquare } from 'lucide-react';
+import { Users, FileText, LayoutGrid, MessageSquare, BookOpen } from 'lucide-react';
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: HomeIcon },
@@ -29,6 +29,13 @@ const navigation = [
       { name: 'Suits', href: '/dashboard/tarot/suits', icon: Square3Stack3DIcon },
       { name: 'Ngữ cảnh', href: '/dashboard/tarot/contexts', icon: MessageSquare },
       { name: 'Ý nghĩa lá bài', href: '/dashboard/tarot/card-contexts', icon: FileText },
+    ],
+  },
+  {
+    name: 'Tarot Reading',
+    icon: BookOpen,
+    children: [
+      { name: 'Kiểu trải bài', href: '/dashboard/tarot/spreadtypes', icon: Square3Stack3DIcon },
     ],
   },
 ];

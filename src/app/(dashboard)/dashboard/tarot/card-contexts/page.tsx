@@ -4,13 +4,13 @@ import { useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { useQuery } from '@tanstack/react-query';
 import { getAllCards } from '@/services/cards';
-import { getContexts } from '@/services/contexts';
+import { getContexts } from '@/services/api/tarot/contexts';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import CardContextForm from './components/card-context-form';
 import { CardFilter } from './components/card-filter';
 import { Loader2 } from 'lucide-react';
-import { Card as CardType, Context } from '@/types/tarot';
+import { Card as CardType, TarotContext } from '@/types/tarot';
 
 export default function CardContextsPage() {
   const [selectedCardId, setSelectedCardId] = useState<string>('');
@@ -21,7 +21,7 @@ export default function CardContextsPage() {
     queryFn: getAllCards
   });
 
-  const { data: contexts, isLoading: isLoadingContexts } = useQuery<Context[]>({
+  const { data: contexts, isLoading: isLoadingContexts } = useQuery<TarotContext[]>({
     queryKey: ['contexts'],
     queryFn: getContexts
   });
@@ -73,14 +73,14 @@ export default function CardContextsPage() {
         {selectedCardId && contexts && contexts.length > 0 && (
           <Tabs defaultValue={contexts[0]._id}>
             <TabsList className="mb-6">
-              {contexts.map((context: Context) => (
+              {contexts.map((context: TarotContext) => (
                 <TabsTrigger key={context._id} value={context._id}>
                   {context.name}
                 </TabsTrigger>
               ))}
             </TabsList>
 
-            {contexts.map((context: Context) => (
+            {contexts.map((context: TarotContext) => (
               <TabsContent key={context._id} value={context._id}>
                 <CardContextForm
                   cardId={selectedCardId}

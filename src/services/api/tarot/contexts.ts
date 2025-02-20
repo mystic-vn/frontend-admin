@@ -1,26 +1,32 @@
-import type { Context } from "@/components/tarot/contexts/columns";
+import { TarotContext } from "@/types/tarot";
 import axiosInstance from "@/lib/axios";
 
-export const getContexts = async (): Promise<Context[]> => {
-  const response = await axiosInstance.get("/tarot/contexts");
-  return response.data;
+export const getContexts = async (): Promise<TarotContext[]> => {
+  const response = await axiosInstance.get<TarotContext[]>("/tarot/contexts");
+  return response.data.map(context => ({
+    ...context,
+    isDeleted: context.isDeleted ?? false
+  }));
 };
 
-export const getContext = async (id: string): Promise<Context> => {
-  const response = await axiosInstance.get(`/tarot/contexts/${id}`);
-  return response.data;
+export const getContext = async (id: string): Promise<TarotContext> => {
+  const response = await axiosInstance.get<TarotContext>(`/tarot/contexts/${id}`);
+  return {
+    ...response.data,
+    isDeleted: response.data.isDeleted ?? false
+  };
 };
 
-export const createContext = async (data: Partial<Context>): Promise<Context> => {
-  const response = await axiosInstance.post("/tarot/contexts", data);
+export const createContext = async (data: Partial<TarotContext>): Promise<TarotContext> => {
+  const response = await axiosInstance.post<TarotContext>("/tarot/contexts", data);
   return response.data;
 };
 
 export const updateContext = async (
   id: string,
-  data: Partial<Context>
-): Promise<Context> => {
-  const response = await axiosInstance.patch(`/tarot/contexts/${id}`, data);
+  data: Partial<TarotContext>
+): Promise<TarotContext> => {
+  const response = await axiosInstance.patch<TarotContext>(`/tarot/contexts/${id}`, data);
   return response.data;
 };
 
