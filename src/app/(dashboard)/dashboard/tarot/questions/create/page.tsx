@@ -1,8 +1,8 @@
 import { Metadata } from "next";
-import CreateQuestionForm from "../components/create-question-form";
+import QuestionForm from "../components/question-form";
 
 export const metadata: Metadata = {
-  title: "Tạo Câu hỏi Tarot",
+  title: "Tạo câu hỏi Tarot mới",
   description: "Tạo câu hỏi và trải bài Tarot mới",
 };
 
@@ -10,12 +10,12 @@ export default function CreateQuestionPage() {
   return (
     <div className="flex flex-col gap-6 p-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Tạo Câu hỏi Tarot</h1>
+        <h1 className="text-2xl font-bold tracking-tight">Tạo câu hỏi Tarot mới</h1>
         <p className="text-sm text-muted-foreground">
-          Tạo câu hỏi mới kèm theo trải bài tương ứng
+          Tạo câu hỏi và cấu hình trải bài tương ứng
         </p>
       </div>
-      <CreateQuestionForm />
+      <QuestionForm />
     </div>
   );
 } 

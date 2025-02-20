@@ -9,10 +9,29 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import Button  from "@/components/ui/button";
-import { Question, getQuestions, deleteQuestion } from "@/services/questions";
-import { useToast } from "@/components/ui/use-toast";
+import { Badge } from "@/components/ui/badge";
+import  Button  from "@/components/ui/button";
+import { Edit, Trash2 } from "lucide-react";
 import Link from "next/link";
+import { useToast } from "@/components/ui/use-toast";
+
+interface Question {
+  _id: string;
+  title: string;
+  content: string;
+  context: string;
+  spreadType: {
+    _id: string;
+    name: string;
+  };
+  positions: {
+    index: number;
+    aspect: string;
+    interpretation: string;
+  }[];
+  keywords: string[];
+  isActive: boolean;
+}
 
 export default function QuestionList() {
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -20,12 +39,14 @@ export default function QuestionList() {
   const { toast } = useToast();
 
   useEffect(() => {
-    loadQuestions();
+    fetchQuestions();
   }, []);
 
-  const loadQuestions = async () => {
+  const fetchQuestions = async () => {
     try {
-      const data = await getQuestions();
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/tarot-reading/questions`);
+      if (!response.ok) throw new Error("Failed to fetch questions");
+      const data = await response.json();
       setQuestions(data);
     } catch (error) {
       toast({
@@ -39,13 +60,24 @@ export default function QuestionList() {
   };
 
   const handleDelete = async (id: string) => {
+    if (!confirm("Bạn có chắc chắn muốn xóa câu hỏi này?")) return;
+
     try {
-      await deleteQuestion(id);
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/tarot-reading/questions/${id}`,
+        {
+          method: "DELETE",
+        }
+      );
+
+      if (!response.ok) throw new Error("Failed to delete question");
+
       toast({
         title: "Thành công",
         description: "Đã xóa câu hỏi",
       });
-      loadQuestions();
+
+      fetchQuestions();
     } catch (error) {
       toast({
         title: "Lỗi",
@@ -64,49 +96,56 @@ export default function QuestionList() {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Nội dung câu hỏi</TableHead>
+            <TableHead>Tiêu đề</TableHead>
+            <TableHead>Nội dung chi tiết</TableHead>
             <TableHead>Ngữ cảnh</TableHead>
+            <TableHead>Kiểu trải bài</TableHead>
             <TableHead>Số vị trí</TableHead>
+            <TableHead>Từ khóa</TableHead>
             <TableHead>Trạng thái</TableHead>
             <TableHead className="text-right">Thao tác</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {questions.map((question) => (
-            <TableRow key={question.id}>
-              <TableCell>{question.content}</TableCell>
+            <TableRow key={question._id}>
+              <TableCell className="font-medium">{question.title}</TableCell>
+              <TableCell className="max-w-[200px] truncate">{question.content}</TableCell>
               <TableCell>{question.context}</TableCell>
+              <TableCell>{question.spreadType.name}</TableCell>
               <TableCell>{question.positions.length}</TableCell>
               <TableCell>
-                {question.isActive ? (
-                  <span className="text-green-600">Hoạt động</span>
-                ) : (
-                  <span className="text-red-600">Đã ẩn</span>
-                )}
+                <div className="flex flex-wrap gap-1">
+                  {question.keywords.map((keyword, index) => (
+                    <Badge key={index} variant="secondary">
+                      {keyword}
+                    </Badge>
+                  ))}
+                </div>
               </TableCell>
-              <TableCell className="text-right space-x-2">
-                <Link href={`/dashboard/tarot/questions/${question.id}`}>
-                  <Button variant="outline" size="sm">
-                    Chi tiết
+              <TableCell>
+                <Badge variant={question.isActive ? "default" : "destructive"}>
+                  {question.isActive ? "Hoạt động" : "Không hoạt động"}
+                </Badge>
+              </TableCell>
+              <TableCell className="text-right">
+                <div className="flex justify-end gap-2">
+                  <Link href={`/dashboard/tarot/questions/edit/${question._id}`}>
+                    <Button variant="outline" size="icon">
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                  </Link>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => handleDelete(question._id)}
+                  >
+                    <Trash2 className="h-4 w-4" />
                   </Button>
-                </Link>
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => handleDelete(question.id)}
-                >
-                  Xóa
-                </Button>
+                </div>
               </TableCell>
             </TableRow>
           ))}
-          {questions.length === 0 && (
-            <TableRow>
-              <TableCell colSpan={5} className="text-center">
-                Chưa có câu hỏi nào
-              </TableCell>
-            </TableRow>
-          )}
         </TableBody>
       </Table>
     </div>

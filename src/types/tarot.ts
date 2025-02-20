@@ -128,4 +128,20 @@ export interface Context {
   isDeleted?: boolean;
   createdAt?: string;
   updatedAt?: string;
+}
+
+export interface SpreadType {
+  _id: string;
+  name: string;
+  description: string;
+  positions: {
+    index: number;
+    name: string;
+    aspect: string;
+    description: string;
+  }[];
+  supportedContexts: string[];
+  isDeleted?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
 } 

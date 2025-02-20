@@ -36,6 +36,7 @@ const navigation = [
     icon: BookOpen,
     children: [
       { name: 'Kiểu trải bài', href: '/dashboard/tarot/spreadtypes', icon: Square3Stack3DIcon },
+      { name: 'Câu hỏi', href: '/dashboard/tarot/questions', icon: MessageSquare },
     ],
   },
 ];
