@@ -13,7 +13,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { TarotCard } from '@/types/tarot';
 import { createCard, updateCard, fetchDecks, fetchSuits } from '@/services/tarot';
 import { useQuery } from '@tanstack/react-query';
-import { FolderOpen } from 'lucide-react';
+import { FolderOpen, Loader2 } from 'lucide-react';
 import { api } from '@/lib/api';
 import Image from 'next/image';
 import {
@@ -61,10 +61,11 @@ interface CardDialogProps {
 export function CardDialog({ card, open, onOpenChange, onSuccess }: CardDialogProps) {
   const { toast } = useToast();
   const [showFileBrowser, setShowFileBrowser] = useState(false);
-  const [files, setFiles] = useState<any[]>([]);
   const [currentPath, setCurrentPath] = useState('');
+  const [files, setFiles] = useState<any[]>([]);
   const [fileLoading, setFileLoading] = useState(false);
-  const [selectedImage, setSelectedImage] = useState<string>('');
+  const [selectedImage, setSelectedImage] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
   const [selectedType, setSelectedType] = useState<CardType>(CardType.MAJOR);
 
   const form = useForm<FormValues>({
@@ -236,11 +237,14 @@ export function CardDialog({ card, open, onOpenChange, onSuccess }: CardDialogPr
   }, [card, selectedArcanaType, selectedSuit, selectedType, toast, onOpenChange, onSuccess]);
 
   // Tối ưu file browser functions với useCallback
-  const fetchFiles = useCallback(async (path: string) => {
+  const fetchFiles = useCallback(async (path: string, search?: string) => {
     setFileLoading(true);
     try {
       const { data } = await api.get('/uploads', {
-        params: { prefix: path }
+        params: { 
+          prefix: path,
+          search: search
+        }
       });
       setFiles(data);
     } catch (error: any) {
@@ -252,6 +256,11 @@ export function CardDialog({ card, open, onOpenChange, onSuccess }: CardDialogPr
     }
     setFileLoading(false);
   }, [toast]);
+
+  const handleSearch = useCallback((value: string) => {
+    setSearchQuery(value);
+    fetchFiles(currentPath, value);
+  }, [currentPath, fetchFiles]);
 
   const handleSelectFile = useCallback((file: any) => {
     form.setValue('imageUrl', file.url);
@@ -270,9 +279,9 @@ export function CardDialog({ card, open, onOpenChange, onSuccess }: CardDialogPr
 
   useEffect(() => {
     if (showFileBrowser) {
-      fetchFiles('');
+      fetchFiles('', searchQuery);
     }
-  }, [showFileBrowser, fetchFiles]);
+  }, [showFileBrowser, fetchFiles, searchQuery]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -526,95 +535,109 @@ export function CardDialog({ card, open, onOpenChange, onSuccess }: CardDialogPr
         </Form>
 
         {/* File Browser Dialog */}
-        <Dialog open={showFileBrowser} onOpenChange={setShowFileBrowser}>
-          <DialogContent className="max-w-4xl max-h-[80vh]">
-            <DialogHeader>
-              <DialogTitle>Chọn hình ảnh</DialogTitle>
-            </DialogHeader>
+        {showFileBrowser && (
+          <Dialog open={showFileBrowser} onOpenChange={setShowFileBrowser}>
+            <DialogContent className="max-w-4xl max-h-[80vh]">
+              <DialogHeader>
+                <DialogTitle>Chọn hình ảnh</DialogTitle>
+              </DialogHeader>
 
-            <div className="p-4">
-              <div className="text-sm text-gray-900 mb-4 flex items-center">
-                <span className="mr-2">Thư mục hiện tại:</span>
-                <button
-                  onClick={() => {
-                    setCurrentPath('');
-                    fetchFiles('');
-                  }}
-                  className="text-indigo-600 hover:text-indigo-800"
-                >
-                  Thư mục gốc
-                </button>
-                {currentPath && currentPath.split('/').filter(Boolean).map((part, index, array) => {
-                  const path = array.slice(0, index + 1).join('/');
-                  return (
-                    <span key={`breadcrumb-${path}`} className="flex items-center">
-                      <span className="mx-2 text-gray-500">/</span>
-                      <button
-                        onClick={() => {
-                          setCurrentPath(path);
-                          fetchFiles(path);
-                        }}
-                        className="text-indigo-600 hover:text-indigo-800"
-                      >
-                        {part}
-                      </button>
-                    </span>
-                  );
-                })}
-              </div>
+              <div className="p-4">
+                {/* Breadcrumb Navigation */}
+                <div className="text-sm text-gray-900 mb-4 flex items-center">
+                  <span className="mr-2">Thư mục hiện tại:</span>
+                  <button
+                    onClick={() => {
+                      setCurrentPath('');
+                      fetchFiles('');
+                    }}
+                    className="text-indigo-600 hover:text-indigo-800"
+                  >
+                    Thư mục gốc
+                  </button>
+                  {currentPath && currentPath.split('/').filter(Boolean).map((part, index, array) => {
+                    const path = array.slice(0, index + 1).join('/');
+                    return (
+                      <span key={`breadcrumb-${path}`} className="flex items-center">
+                        <span className="mx-2 text-gray-500">/</span>
+                        <button
+                          onClick={() => {
+                            setCurrentPath(path);
+                            fetchFiles(path);
+                          }}
+                          className="text-indigo-600 hover:text-indigo-800"
+                        >
+                          {part}
+                        </button>
+                      </span>
+                    );
+                  })}
+                </div>
 
-              <div className="overflow-y-auto max-h-[calc(80vh-12rem)]">
-                {fileLoading ? (
-                  <div className="flex justify-center">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-4 gap-4">
-                    {files.map((file) => (
-                      <div
-                        key={`file-${file.key}`}
-                        className={`
-                          relative group rounded-lg border border-gray-200 p-2 
-                          ${file.isDirectory ? 'cursor-pointer hover:border-indigo-500' : 
-                            (isImageFile(file.key) ? 'cursor-pointer hover:border-indigo-500' : 'opacity-50')}
-                        `}
-                        onClick={() => {
-                          if (file.isDirectory) {
-                            navigateToFolder(file.key);
-                          } else if (isImageFile(file.key)) {
-                            handleSelectFile(file);
-                          }
-                        }}
-                      >
-                        <div className="aspect-square mb-2 rounded-lg overflow-hidden bg-gray-100 flex items-center justify-center">
-                          {file.isDirectory ? (
-                            <FolderOpen className="h-16 w-16 text-gray-400" />
-                          ) : isImageFile(file.key) ? (
-                            <Image
-                              src={file.url}
-                              alt={file.key}
-                              width={200}
-                              height={200}
-                              className="w-full h-full object-cover"
-                            />
-                          ) : (
-                            <div className="h-16 w-16 text-gray-400" />
-                          )}
+                {/* Search Box */}
+                <div className="mb-4">
+                  <Input
+                    placeholder="Tìm kiếm hình ảnh..."
+                    value={searchQuery}
+                    onChange={(e) => handleSearch(e.target.value)}
+                    className="w-full"
+                  />
+                </div>
+
+                {/* File Grid */}
+                <div className="overflow-y-auto max-h-[calc(80vh-12rem)]">
+                  {fileLoading ? (
+                    <div className="flex justify-center">
+                      <Loader2 className="h-8 w-8 animate-spin" />
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-4 gap-4">
+                      {files.map((file) => (
+                        <div
+                          key={`file-${file.key}`}
+                          className={`
+                            relative group rounded-lg border border-gray-200 p-2 
+                            ${file.isDirectory ? 'cursor-pointer hover:border-indigo-500' : 
+                              (isImageFile(file.key) ? 'cursor-pointer hover:border-indigo-500' : 'opacity-50')}
+                          `}
+                          onClick={() => {
+                            if (file.isDirectory) {
+                              navigateToFolder(file.key);
+                            } else if (isImageFile(file.key)) {
+                              handleSelectFile(file);
+                            }
+                          }}
+                        >
+                          <div className="aspect-square mb-2 rounded-lg overflow-hidden bg-gray-100 flex items-center justify-center">
+                            {file.isDirectory ? (
+                              <FolderOpen className="h-16 w-16 text-gray-400" />
+                            ) : isImageFile(file.key) ? (
+                              <Image
+                                src={file.url}
+                                alt={file.key}
+                                width={200}
+                                height={200}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <div className="h-16 w-16 text-gray-400" />
+                            )}
+                          </div>
+                          <div className="text-sm truncate text-gray-900">
+                            {file.isDirectory 
+                              ? file.key.split('/').filter(Boolean).pop()
+                              : file.key.split('/').pop()
+                            }
+                          </div>
                         </div>
-                        <div className="text-sm truncate text-gray-900">
-                          {file.isDirectory 
-                            ? file.key.split('/').filter(Boolean).pop()
-                            : file.key.split('/').pop()
-                          }
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          </DialogContent>
-        </Dialog>
+            </DialogContent>
+          </Dialog>
+        )}
       </DialogContent>
     </Dialog>
   );
