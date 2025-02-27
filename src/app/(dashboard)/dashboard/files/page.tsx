@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'react-hot-toast';
 import Button from '@/components/ui/button';
-import axiosInstance from '@/lib/axios';
+import { api } from '@/lib/api';
 import { 
   FolderIcon, 
   DocumentIcon, 
@@ -34,7 +34,7 @@ interface RenameDialogState {
   newName: string;
 }
 
-export default function FilesPage() {
+function FilesContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [files, setFiles] = useState<File[]>([]);
@@ -50,6 +50,7 @@ export default function FilesPage() {
   });
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Khôi phục đường dẫn từ URL khi component mount
   useEffect(() => {
@@ -71,14 +72,23 @@ export default function FilesPage() {
   const fetchFiles = async () => {
     try {
       setLoading(true);
-      const response = await axiosInstance.get('/uploads', {
-        params: { prefix: currentPath }
+      console.log('Fetching files with prefix:', currentPath);
+      const { data } = await api.get('/uploads', {
+        params: { 
+          prefix: currentPath,
+          search: searchQuery
+        }
       });
-      setFiles(response.data);
+      console.log('Files response:', data);
+      setFiles(data);
       setError('');
     } catch (err: any) {
+      console.error('Error details:', {
+        message: err.response?.data?.message,
+        status: err.response?.status,
+        data: err.response?.data
+      });
       setError(err.response?.data?.message || 'Có lỗi xảy ra khi tải danh sách files');
-      console.error('Error fetching files:', err);
     } finally {
       setLoading(false);
     }
@@ -86,7 +96,7 @@ export default function FilesPage() {
 
   useEffect(() => {
     fetchFiles();
-  }, [currentPath]);
+  }, [currentPath, searchQuery]);
 
   const handleDelete = async (key: string, isDirectory: boolean) => {
     if (!confirm(`Bạn có chắc chắn muốn xóa ${isDirectory ? 'thư mục' : 'file'} này?`)) return;
@@ -95,13 +105,13 @@ export default function FilesPage() {
       setActionLoading({ type: 'delete', key });
       console.log('Original key:', key);
       if (isDirectory) {
-        await axiosInstance.delete(`/uploads/folder`, {
+        await api.delete(`/uploads/folder`, {
           data: { folderPath: key }
         });
       } else {
         const encodedKey = encodeURIComponent(key);
         console.log('Deleting file:', `/uploads/file/${encodedKey}`);
-        await axiosInstance.delete(`/uploads/file/${encodedKey}`);
+        await api.delete(`/uploads/file/${encodedKey}`);
       }
       toast.success(`Xóa ${isDirectory ? 'thư mục' : 'file'} thành công`);
       fetchFiles();
@@ -130,7 +140,7 @@ export default function FilesPage() {
         ? `${currentPath}/${newFolderName}` 
         : newFolderName;
       
-      await axiosInstance.post('/uploads/folders', {
+      await api.post('/uploads/folders', {
         folderPath
       });
       toast.success('Tạo thư mục thành công');
@@ -158,7 +168,7 @@ export default function FilesPage() {
         formData.append('file', file);
 
         try {
-          await axiosInstance.post(`/uploads?folder=${currentPath}`, formData, {
+          await api.post(`/uploads?folder=${currentPath}`, formData, {
             headers: {
               'Content-Type': 'multipart/form-data',
             },
@@ -224,16 +234,27 @@ export default function FilesPage() {
 
   // Sửa lại hàm navigateToFolder
   const navigateToFolder = (key: string) => {
-    const newPath = key.replace(/\/$/, '');
+    const newPath = key;
+    console.log('Navigating to folder:', { newPath, originalKey: key });
     setCurrentPath(newPath);
     updateURL(newPath);
   };
 
   // Sửa lại hàm navigateUp
   const navigateUp = () => {
-    const newPath = currentPath.split('/').slice(0, -1).join('/');
+    const pathParts = currentPath.split('/').filter(Boolean);
+    const newPath = pathParts.slice(0, -1).join('/');
     setCurrentPath(newPath);
     updateURL(newPath);
+  };
+
+  // Thêm hàm để lấy tên hiển thị của file/folder
+  const getDisplayName = (key: string, isDirectory: boolean) => {
+    const parts = key.split('/').filter(Boolean);
+    if (isDirectory) {
+      return parts[parts.length - 1] || key;
+    }
+    return parts[parts.length - 1] || key;
   };
 
   const handleRename = async () => {
@@ -259,7 +280,7 @@ export default function FilesPage() {
         isDirectory: renameDialog.item.isDirectory
       });
 
-      await axiosInstance.post('/uploads/rename', {
+      await api.post('/uploads/rename', {
         oldPath,
         newPath,
         isDirectory: renameDialog.item.isDirectory
@@ -383,6 +404,17 @@ export default function FilesPage() {
         </div>
       </div>
 
+      {/* Thêm ô tìm kiếm */}
+      <div className="mt-4">
+        <input
+          type="text"
+          placeholder="Tìm kiếm file..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="w-full max-w-xs px-3 py-2 border rounded-md text-gray-900 placeholder-gray-500"
+        />
+      </div>
+
       {error && (
         <div className="mt-4 p-4 text-sm text-red-700 bg-red-100 rounded-lg">
           {error}
@@ -435,7 +467,7 @@ export default function FilesPage() {
                                     className="text-indigo-600 hover:text-indigo-900"
                                     disabled={!!actionLoading}
                                   >
-                                    {file.key.split('/').slice(-2, -1)[0] || file.key.replace('/', '')}
+                                    {getDisplayName(file.key, true)}
                                   </button>
                                 </>
                               ) : (
@@ -447,7 +479,7 @@ export default function FilesPage() {
                                     rel="noopener noreferrer"
                                     className="text-indigo-600 hover:text-indigo-900"
                                   >
-                                    {file.key.split('/').pop()}
+                                    {getDisplayName(file.key, false)}
                                   </a>
                                 </>
                               )}
@@ -515,7 +547,7 @@ export default function FilesPage() {
                       className="text-indigo-600 hover:text-indigo-900 truncate w-full text-left"
                       disabled={!!actionLoading}
                     >
-                      {file.key.split('/').slice(-2, -1)[0] || file.key.replace('/', '')}
+                      {getDisplayName(file.key, true)}
                     </button>
                   ) : (
                     <a
@@ -524,7 +556,7 @@ export default function FilesPage() {
                       rel="noopener noreferrer"
                       className="text-indigo-600 hover:text-indigo-900 truncate block"
                     >
-                      {file.key.split('/').pop()}
+                      {getDisplayName(file.key, false)}
                     </a>
                   )}
                 </div>
@@ -627,5 +659,24 @@ export default function FilesPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function FilesPage() {
+  return (
+    <Suspense fallback={
+      <div className="p-6">
+        <div className="animate-pulse">
+          <div className="h-8 bg-gray-200 rounded w-1/4 mb-6"></div>
+          <div className="space-y-4">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="h-12 bg-gray-200 rounded"></div>
+            ))}
+          </div>
+        </div>
+      </div>
+    }>
+      <FilesContent />
+    </Suspense>
   );
 } 
