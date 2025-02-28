@@ -52,42 +52,99 @@ function FilesContent() {
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Khôi phục đường dẫn từ URL khi component mount
+  const decodePath = (path: string) => {
+    try {
+      return decodeURIComponent(path).replace(/\+/g, ' ');
+    } catch {
+      return path;
+    }
+  };
+
+  const processPath = (path: string) => {
+    try {
+      if (!path) return '';
+      
+      let processedPath = decodeURIComponent(path);
+      
+      processedPath = processedPath.replace(/\+/g, ' ');
+      
+      processedPath = processedPath.replace(/\/+/g, '/');
+      
+      processedPath = processedPath.replace(/^\/+|\/+$/g, '');
+      
+      console.log('processPath:', {
+        input: path,
+        output: processedPath
+      });
+      
+      return processedPath;
+    } catch (error) {
+      console.error('Error processing path:', error);
+      return path;
+    }
+  };
+
+  const getUploadPath = (currentPath: string) => {
+    if (!currentPath) return 'uploads';
+    
+    const processedPath = processPath(currentPath);
+    console.log('getUploadPath:', {
+      input: currentPath,
+      processed: processedPath
+    });
+    
+    if (processedPath === 'uploads' || processedPath.startsWith('uploads/')) {
+      return processedPath;
+    }
+    
+    return `uploads/${processedPath}`;
+  };
+
   useEffect(() => {
     const path = searchParams.get('path') || '';
+    console.log('Path from URL:', {
+      original: path,
+      processed: path
+    });
     setCurrentPath(path);
   }, [searchParams]);
 
-  // Cập nhật URL khi currentPath thay đổi
   const updateURL = (path: string) => {
-    const params = new URLSearchParams(window.location.search);
+    const params = new URLSearchParams();
     if (path) {
       params.set('path', path);
-    } else {
-      params.delete('path');
     }
-    router.push(`/dashboard/files?${params.toString()}`);
+    const newUrl = `/dashboard/files${path ? `?${params.toString()}` : ''}`;
+    console.log('Updating URL:', { 
+      path,
+      newUrl 
+    });
+    router.push(newUrl);
   };
 
   const fetchFiles = async () => {
     try {
       setLoading(true);
-      console.log('Fetching files with prefix:', currentPath);
+      const prefix = (currentPath || 'uploads') + '/';
+      console.log('Fetching files:', {
+        currentPath,
+        prefix,
+        withSlash: prefix.endsWith('/')
+      });
+      
       const { data } = await api.get('/uploads', {
         params: { 
-          prefix: currentPath,
+          prefix,
           search: searchQuery
         }
       });
       console.log('Files response:', data);
-      setFiles(data);
+      
+      const filteredFiles = data.filter((file: File) => file.key !== prefix);
+      setFiles(filteredFiles);
       setError('');
     } catch (err: any) {
-      console.error('Error details:', {
-        message: err.response?.data?.message,
-        status: err.response?.status,
-        data: err.response?.data
-      });
+      console.error('Error fetching files:', err);
       setError(err.response?.data?.message || 'Có lỗi xảy ra khi tải danh sách files');
     } finally {
       setLoading(false);
@@ -128,6 +185,49 @@ function FilesContent() {
     }
   };
 
+  const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files?.length) return;
+
+    try {
+      setActionLoading({ type: 'upload' });
+      
+      const uploadPath = getUploadPath(currentPath);
+      console.log('Uploading to path:', {
+        currentPath,
+        uploadPath,
+        files: Array.from(files).map(f => f.name)
+      });
+
+      for (const file of Array.from(files)) {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('folder', uploadPath);
+
+        const response = await api.post('/uploads', formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        });
+        console.log('Upload response:', response.data);
+      }
+
+      await fetchFiles();
+      toast.success(files.length > 1 
+        ? 'Tải lên các file thành công'
+        : 'Tải lên file thành công'
+      );
+    } catch (err: any) {
+      console.error('Error uploading:', err);
+      toast.error(err.response?.data?.message || 'Có lỗi xảy ra khi tải lên file');
+    } finally {
+      setActionLoading(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
   const handleCreateFolder = async () => {
     if (!newFolderName.trim()) {
       toast.error('Vui lòng nhập tên thư mục');
@@ -136,81 +236,28 @@ function FilesContent() {
 
     try {
       setActionLoading({ type: 'create' });
-      const folderPath = currentPath 
-        ? `${currentPath}/${newFolderName}` 
-        : newFolderName;
+      const uploadPath = getUploadPath(currentPath);
+      const folderPath = `${uploadPath}/${newFolderName}`;
       
-      await api.post('/uploads/folders', {
+      console.log('Creating folder:', {
+        currentPath,
+        uploadPath,
         folderPath
       });
-      toast.success('Tạo thư mục thành công');
+
+      await api.post('/uploads/folders', {
+        folderPath: folderPath
+      });
+      
       setShowNewFolderDialog(false);
       setNewFolderName('');
-      fetchFiles();
+      await fetchFiles();
+      toast.success('Tạo thư mục thành công');
     } catch (err: any) {
-      toast.error(err.response?.data?.message || 'Có lỗi xảy ra khi tạo thư mục');
       console.error('Error creating folder:', err);
+      toast.error(err.response?.data?.message || 'Có lỗi xảy ra khi tạo thư mục');
     } finally {
       setActionLoading(null);
-    }
-  };
-
-  const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files;
-    if (!files?.length) return;
-
-    try {
-      setActionLoading({ type: 'upload' });
-      
-      // Tạo mảng promises cho việc upload nhiều file
-      const uploadPromises = Array.from(files).map(async (file) => {
-        const formData = new FormData();
-        formData.append('file', file);
-
-        try {
-          await api.post(`/uploads?folder=${currentPath}`, formData, {
-            headers: {
-              'Content-Type': 'multipart/form-data',
-            },
-          });
-          return { success: true, fileName: file.name };
-        } catch (error: any) {
-          return { 
-            success: false, 
-            fileName: file.name, 
-            error: error.response?.data?.message || 'Lỗi upload file' 
-          };
-        }
-      });
-
-      // Chờ tất cả các file upload xong
-      const results = await Promise.all(uploadPromises);
-
-      // Thống kê kết quả
-      const successful = results.filter(r => r.success).length;
-      const failed = results.filter(r => !r.success);
-
-      // Hiển thị thông báo tương ứng
-      if (successful > 0) {
-        toast.success(`Upload thành công ${successful} file`);
-      }
-      
-      if (failed.length > 0) {
-        failed.forEach(f => {
-          toast.error(`Lỗi upload file ${f.fileName}: ${f.error}`);
-        });
-      }
-
-      // Refresh danh sách file
-      fetchFiles();
-    } catch (err: any) {
-      toast.error('Có lỗi xảy ra khi upload files');
-      console.error('Error uploading:', err);
-    } finally {
-      setActionLoading(null);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
     }
   };
 
@@ -232,29 +279,42 @@ function FilesContent() {
     });
   };
 
-  // Sửa lại hàm navigateToFolder
   const navigateToFolder = (key: string) => {
-    const newPath = key;
-    console.log('Navigating to folder:', { newPath, originalKey: key });
-    setCurrentPath(newPath);
-    updateURL(newPath);
+    const cleanKey = key.endsWith('/') ? key.slice(0, -1) : key;
+    
+    console.log('Navigating to folder:', {
+      originalKey: key,
+      cleanKey,
+      isRoot: cleanKey === 'uploads'
+    });
+    
+    setCurrentPath(cleanKey);
+    updateURL(cleanKey);
   };
 
-  // Sửa lại hàm navigateUp
   const navigateUp = () => {
     const pathParts = currentPath.split('/').filter(Boolean);
+    
+    if (pathParts.length <= 1) {
+      return;
+    }
+    
     const newPath = pathParts.slice(0, -1).join('/');
+    
+    console.log('Navigating up:', {
+      from: currentPath,
+      to: newPath,
+      parts: pathParts
+    });
+    
     setCurrentPath(newPath);
     updateURL(newPath);
   };
 
-  // Thêm hàm để lấy tên hiển thị của file/folder
   const getDisplayName = (key: string, isDirectory: boolean) => {
-    const parts = key.split('/').filter(Boolean);
-    if (isDirectory) {
-      return parts[parts.length - 1] || key;
-    }
-    return parts[parts.length - 1] || key;
+    const cleanKey = key.endsWith('/') ? key.slice(0, -1) : key;
+    const parts = cleanKey.split('/').filter(Boolean);
+    return parts[parts.length - 1] || cleanKey;
   };
 
   const handleRename = async () => {
@@ -267,11 +327,8 @@ function FilesContent() {
       setActionLoading({ type: 'rename', key: renameDialog.item.key });
 
       const oldPath = renameDialog.item.key;
-      // Tách đường dẫn thành các phần
       const pathParts = oldPath.split('/');
-      // Thay thế phần cuối cùng (tên file/thư mục) bằng tên mới
       pathParts[pathParts.length - 2] = renameDialog.newName;
-      // Ghép lại thành đường dẫn mới
       const newPath = pathParts.join('/');
 
       console.log('Renaming:', {
@@ -311,30 +368,35 @@ function FilesContent() {
     return imageExtensions.some(ext => fileName.toLowerCase().endsWith(ext));
   };
 
-  // Thêm hàm để tạo breadcrumb links
   const renderBreadcrumbs = () => {
     if (!currentPath) return 'Thư mục gốc';
 
-    const parts = currentPath.split('/');
+    const parts = currentPath.split('/').filter(Boolean);
+    
     return (
       <span className="flex items-center flex-wrap">
         <span className="text-gray-500">Thư mục: </span>
+        <button
+          onClick={() => navigateToFolder('uploads')}
+          className="ml-1 hover:text-indigo-600 text-indigo-600"
+        >
+          Gốc
+        </button>
         {parts.map((part, index) => {
-          // Tạo đường dẫn tích lũy đến phần tử hiện tại
           const path = parts.slice(0, index + 1).join('/');
           const isLast = index === parts.length - 1;
 
           return (
             <span key={path} className="flex items-center">
+              <span className="text-gray-500 mx-1">/</span>
               <button
                 onClick={() => navigateToFolder(path)}
-                className={`ml-1 hover:text-indigo-600 ${
+                className={`hover:text-indigo-600 ${
                   isLast ? 'text-gray-900 font-medium' : 'text-indigo-600'
                 }`}
               >
                 {part}
               </button>
-              {!isLast && <span className="text-gray-500 mx-1">/</span>}
             </span>
           );
         })}
@@ -404,7 +466,6 @@ function FilesContent() {
         </div>
       </div>
 
-      {/* Thêm ô tìm kiếm */}
       <div className="mt-4">
         <input
           type="text"
@@ -590,7 +651,6 @@ function FilesContent() {
         )}
       </div>
 
-      {/* Dialog tạo thư mục mới */}
       {showNewFolderDialog && (
         <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center">
           <div className="bg-white p-6 rounded-lg shadow-xl">
@@ -625,7 +685,6 @@ function FilesContent() {
         </div>
       )}
 
-      {/* Dialog đổi tên */}
       {renameDialog.show && (
         <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center">
           <div className="bg-white p-6 rounded-lg shadow-xl">

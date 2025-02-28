@@ -43,11 +43,11 @@ apiClient.interceptors.response.use(
 
         // Gọi API refresh token
         const response = await axios.post(`${API_URL}/auth/refresh`, {
-          refreshToken,
+          refresh_token: refreshToken,
         });
 
         // Lưu token mới
-        const { accessToken, refreshToken: newRefreshToken } = response.data;
+        const { access_token: accessToken, refresh_token: newRefreshToken } = response.data;
         localStorage.setItem('accessToken', accessToken);
         localStorage.setItem('refreshToken', newRefreshToken);
 

@@ -13,7 +13,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { TarotCard } from '@/types/tarot';
 import { createCard, updateCard, fetchDecks, fetchSuits } from '@/services/tarot';
 import { useQuery } from '@tanstack/react-query';
-import { FolderOpen, Loader2 } from 'lucide-react';
+import { FolderOpen, Loader2, ArrowLeftIcon } from 'lucide-react';
 import { api } from '@/lib/api';
 import Image from 'next/image';
 import {
@@ -61,7 +61,7 @@ interface CardDialogProps {
 export function CardDialog({ card, open, onOpenChange, onSuccess }: CardDialogProps) {
   const { toast } = useToast();
   const [showFileBrowser, setShowFileBrowser] = useState(false);
-  const [currentPath, setCurrentPath] = useState('');
+  const [currentPath, setCurrentPath] = useState<string>('uploads');
   const [files, setFiles] = useState<any[]>([]);
   const [fileLoading, setFileLoading] = useState(false);
   const [selectedImage, setSelectedImage] = useState('');
@@ -81,7 +81,7 @@ export function CardDialog({ card, open, onOpenChange, onSuccess }: CardDialogPr
       generalKeywords: '',
       generalMeaningUpright: '',
       generalMeaningReversed: '',
-    },
+    }
   });
 
   // Fetch arcana types với select và staleTime
@@ -237,16 +237,26 @@ export function CardDialog({ card, open, onOpenChange, onSuccess }: CardDialogPr
   }, [card, selectedArcanaType, selectedSuit, selectedType, toast, onOpenChange, onSuccess]);
 
   // Tối ưu file browser functions với useCallback
-  const fetchFiles = useCallback(async (path: string, search?: string) => {
+  const fetchFiles = useCallback(async (path: string = 'uploads', search?: string) => {
     setFileLoading(true);
     try {
+      const prefix = path.endsWith('/') ? path : `${path}/`;
+      console.log('Fetching files:', {
+        path,
+        prefix,
+        search
+      });
+      
       const { data } = await api.get('/uploads', {
         params: { 
-          prefix: path,
-          search: search
+          prefix,
+          search
         }
       });
-      setFiles(data);
+      
+      // Lọc bỏ file hiện tại ra khỏi danh sách
+      const filteredFiles = data.filter((file: any) => file.key !== prefix);
+      setFiles(filteredFiles);
     } catch (error: any) {
       toast({
         title: 'Lỗi tải files',
@@ -256,6 +266,13 @@ export function CardDialog({ card, open, onOpenChange, onSuccess }: CardDialogPr
     }
     setFileLoading(false);
   }, [toast]);
+
+  // Fetch files khi mở file browser lần đầu
+  useEffect(() => {
+    if (showFileBrowser) {
+      fetchFiles(currentPath);
+    }
+  }, [showFileBrowser, currentPath, fetchFiles]);
 
   const handleSearch = useCallback((value: string) => {
     setSearchQuery(value);
@@ -269,19 +286,35 @@ export function CardDialog({ card, open, onOpenChange, onSuccess }: CardDialogPr
   }, [form]);
 
   const navigateToFolder = useCallback((path: string) => {
+    console.log('Navigating to folder:', path);
     setCurrentPath(path);
+    setSearchQuery(''); // Reset search khi chuyển thư mục
     fetchFiles(path);
   }, [fetchFiles]);
+
+  const navigateUp = useCallback(() => {
+    const pathParts = currentPath.split('/').filter(Boolean);
+    if (pathParts.length <= 1) {
+      navigateToFolder('uploads');
+      return;
+    }
+    
+    const newPath = pathParts.slice(0, -1).join('/');
+    console.log('Navigating up:', {
+      from: currentPath,
+      to: newPath
+    });
+    
+    navigateToFolder(newPath);
+  }, [currentPath, navigateToFolder]);
+
+  const getBreadcrumbPath = useCallback((index: number, parts: string[]) => {
+    return parts.slice(0, index + 1).join('/');
+  }, []);
 
   const isImageFile = useCallback((filename: string) => {
     return /\.(jpg|jpeg|png|gif|webp)$/i.test(filename);
   }, []);
-
-  useEffect(() => {
-    if (showFileBrowser) {
-      fetchFiles('', searchQuery);
-    }
-  }, [showFileBrowser, fetchFiles, searchQuery]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -547,25 +580,19 @@ export function CardDialog({ card, open, onOpenChange, onSuccess }: CardDialogPr
                 <div className="text-sm text-gray-900 mb-4 flex items-center">
                   <span className="mr-2">Thư mục hiện tại:</span>
                   <button
-                    onClick={() => {
-                      setCurrentPath('');
-                      fetchFiles('');
-                    }}
+                    onClick={() => navigateToFolder('uploads')}
                     className="text-indigo-600 hover:text-indigo-800"
                   >
                     Thư mục gốc
                   </button>
-                  {currentPath && currentPath.split('/').filter(Boolean).map((part, index, array) => {
-                    const path = array.slice(0, index + 1).join('/');
+                  {currentPath.split('/').filter(Boolean).map((part, index, array) => {
+                    if (index === 0 && part === 'uploads') return null;
                     return (
-                      <span key={`breadcrumb-${path}`} className="flex items-center">
+                      <span key={`breadcrumb-${index}`} className="flex items-center">
                         <span className="mx-2 text-gray-500">/</span>
                         <button
-                          onClick={() => {
-                            setCurrentPath(path);
-                            fetchFiles(path);
-                          }}
-                          className="text-indigo-600 hover:text-indigo-800"
+                          onClick={() => navigateToFolder(getBreadcrumbPath(index, array))}
+                          className={`text-indigo-600 hover:text-indigo-800`}
                         >
                           {part}
                         </button>
@@ -574,13 +601,23 @@ export function CardDialog({ card, open, onOpenChange, onSuccess }: CardDialogPr
                   })}
                 </div>
 
-                {/* Search Box */}
-                <div className="mb-4">
+                {/* Navigation Actions */}
+                <div className="mb-4 flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <Button
+                      variant="outline"
+                      onClick={navigateUp}
+                      disabled={currentPath === 'uploads'}
+                    >
+                      <ArrowLeftIcon className="h-4 w-4 mr-1" />
+                      Quay lại
+                    </Button>
+                  </div>
                   <Input
                     placeholder="Tìm kiếm hình ảnh..."
                     value={searchQuery}
                     onChange={(e) => handleSearch(e.target.value)}
-                    className="w-full"
+                    className="w-64"
                   />
                 </div>
 
@@ -624,10 +661,7 @@ export function CardDialog({ card, open, onOpenChange, onSuccess }: CardDialogPr
                             )}
                           </div>
                           <div className="text-sm truncate text-gray-900">
-                            {file.isDirectory 
-                              ? file.key.split('/').filter(Boolean).pop()
-                              : file.key.split('/').pop()
-                            }
+                            {file.key.split('/').filter(Boolean).pop()}
                           </div>
                         </div>
                       ))}
